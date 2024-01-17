@@ -153,4 +153,27 @@ export class EntradeAPIService {
             throw new Error(`Error getting money info for ${accountType} account: ${error.message}`);
         }
     }
+
+    async getCurrentDealsInfo(accountType: string): Promise<any> {
+        try {
+            const { allInfo, subAccounts } = await this.getUserInfoAndSubAccounts(accountType);
+
+            // Ensure account ID is available
+            const accountId = subAccounts[0].id;
+
+            // Get current deals
+            const currentDealsUrl = `${this.BASE_URL}/dnse-deal-service/deals?accountNo=${accountId}`;
+            const currentDealsResponse = await this.session.get(currentDealsUrl, { headers: { Authorization: this.tokens[accountType] } });
+
+            if (currentDealsResponse.status !== 200) {
+                throw new Error(`Failed to get current deals with status code: ${currentDealsResponse.status}`);
+            }
+
+            return currentDealsResponse.data;
+        } catch (error) {
+            throw new Error(`Error getting current deals for ${accountType} account: ${error.message}`);
+        }
+    }
+
+
 }

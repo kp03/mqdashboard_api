@@ -55,5 +55,24 @@ export class EntradeAPIController {
       return { error: error.message };
     }
   }
-  // You can add more endpoints as needed
+
+  @Get('get-all-accounts-current-deals-info')
+  async getAllCurrentDealsInfo() {
+    try {
+      const tokens = await this.entradeAPIService.initializeAccountsIfNeeded();
+      const currentDealsInfoPromises = Object.keys(tokens).map(async (accountType) => {
+        try {
+          const currentDealsInfo = await this.entradeAPIService.getCurrentDealsInfo(accountType);
+          return { accountType, currentDealsInfo };
+        } catch (error) {
+          return { accountType, error: error.message };
+        }
+      });
+
+      const results = await Promise.all(currentDealsInfoPromises);
+      return { currentDealsInfo: results };
+    } catch (error) {
+      return { error: error.message };
+    }
+  }
 }
