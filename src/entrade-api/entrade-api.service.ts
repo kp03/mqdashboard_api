@@ -22,9 +22,10 @@ export class EntradeAPIService {
             this.tokens = await this.initializeAccounts();
             console.log('Tokens initialized successfully.');
         }
-    
+
         return this.tokens;
     }
+
     getToken(accountType: string): string | undefined {
         return this.tokens[accountType];
     }
@@ -80,7 +81,6 @@ export class EntradeAPIService {
         }
     }
 
-
     async getUserInfoAndSubAccounts(accountType: string): Promise<{ allInfo: any, subAccounts: any[] }> {
         const token = this.tokens[accountType];
         if (!token) {
@@ -112,6 +112,52 @@ export class EntradeAPIService {
         return { allInfo, subAccounts };
     }
 
+    // Get portfolio info for all accounts
+    async getAllPortfolioInfo() {
+        try {
+            const tokens = await this.initializeAccountsIfNeeded();
+            const portfolioInfoPromises = Object.keys(tokens).map(async (accountType) => {
+                try {
+                    const portfolioInfo = await this.getPortfolioInfo(accountType);
+                    return { accountType, portfolioInfo };
+                } catch (error) {
+                    return { accountType, error: error.message };
+                }
+            });
+    
+            const portfolioInfoResults = await Promise.all(portfolioInfoPromises);
+            const totalStocks = portfolioInfoResults.flatMap((entry) => entry.portfolioInfo.stocks);
+    
+            const totalPortfolioInfo = {
+                accountType: 'total',
+                portfolioInfo: {
+                    investorId: 'totalPortInvestorId',
+                    custodyCode: 'totalPortCustodyCode',
+                    investorAccountId: 'totalPortInvestorAccountId',
+                    stocks: totalStocks.map((stock) => ({ ...stock })),
+                    id: 'totalPortId',
+                },
+            };
+    
+            const results = portfolioInfoResults.map((portfolioEntry) => ({
+                accountType: portfolioEntry.accountType,
+                portfolioInfo: {
+                    investorId: portfolioEntry.portfolioInfo.investorId,
+                    custodyCode: portfolioEntry.portfolioInfo.custodyCode,
+                    investorAccountId: portfolioEntry.portfolioInfo.investorAccountId,
+                    stocks: portfolioEntry.portfolioInfo.stocks.map((stock) => ({ ...stock })),
+                    id: portfolioEntry.portfolioInfo.id,
+                },
+            }));
+    
+            results.unshift(totalPortfolioInfo);
+    
+            return { portfolioInfo: results };
+        } catch (error) {
+            return { error: error.message };
+        }
+    }
+    // Get portfolio info for a single account
     async getPortfolioInfo(accountType: string): Promise<any> {
         try {
             const { allInfo, subAccounts } = await this.getUserInfoAndSubAccounts(accountType);
@@ -130,27 +176,6 @@ export class EntradeAPIService {
             return portInfoResponse.data;
         } catch (error) {
             throw new Error(`Error getting sub-accounts and portfolio info for ${accountType} account: ${error.message}`);
-        }
-    }
-
-    async getMoneyInfo(accountType: string): Promise<any> {
-        try {
-            const { allInfo, subAccounts } = await this.getUserInfoAndSubAccounts(accountType);
-
-            // Ensure account ID is available
-            const accountId = subAccounts[0].id;
-
-            // Get money info
-            const moneyInfoUrl = `${this.BASE_URL}/dnse-order-service/account-balances/${accountId}`;
-            const moneyInfoResponse = await this.session.get(moneyInfoUrl, { headers: { Authorization: this.tokens[accountType] } });
-
-            if (moneyInfoResponse.status !== 200) {
-                throw new Error(`Failed to get money info with status code: ${moneyInfoResponse.status}`);
-            }
-
-            return moneyInfoResponse.data;
-        } catch (error) {
-            throw new Error(`Error getting money info for ${accountType} account: ${error.message}`);
         }
     }
 
@@ -175,5 +200,72 @@ export class EntradeAPIService {
         }
     }
 
+    // Get money info for all accounts
+    async getAllMoneyInfo() {
+        try {
+            const tokens = await this.initializeAccountsIfNeeded();
 
+            const moneyInfoPromises = Object.keys(tokens).map(async (accountType) => {
+                try {
+                    const moneyInfo = await this.getSingleAccountMoneyInfo(accountType);
+                    return { accountType, moneyInfo };
+                } catch (error) {
+                    return { accountType, error: error.message };
+                }
+            });
+
+            const moneyInfoResults = await Promise.all(moneyInfoPromises);
+            const totalMoneyInfo: any = {};
+            totalMoneyInfo.investorId = 'totalPortInvestorId';
+            totalMoneyInfo.custodyCode = 'totalPortCustodyCode';
+            totalMoneyInfo.investorAccountId = 'totalPortInvestorAccountId';
+
+            moneyInfoResults.forEach((moneyInfo) => {
+                for (const prop in moneyInfo.moneyInfo) {
+                    if (
+                        moneyInfo.moneyInfo.hasOwnProperty(prop) &&
+                        typeof moneyInfo.moneyInfo[prop] === 'number' &&
+                        prop !== 'accountType'
+                    ) {
+                        totalMoneyInfo[prop] = (totalMoneyInfo[prop] || 0) + moneyInfo.moneyInfo[prop];
+                    }
+                }
+            });
+
+            const formattedTotalMoneyInfo = [
+                {
+                    accountType: 'total',
+                    moneyInfo: totalMoneyInfo,
+                },
+                ...moneyInfoResults.map((entry) => ({ accountType: entry.accountType, moneyInfo: entry.moneyInfo })),
+            ];
+
+            const result = {
+                moneyInfo: formattedTotalMoneyInfo,
+            };
+
+            return result;
+        } catch (error) {
+            return { error: error.message };
+        }
+    }
+
+    // Get money for a single account
+    async getSingleAccountMoneyInfo(accountType: string): Promise<any> {
+        try {
+            const { subAccounts } = await this.getUserInfoAndSubAccounts(accountType);
+
+            const accountId = subAccounts[0].id;
+            const moneyInfoUrl = `${this.BASE_URL}/dnse-order-service/account-balances/${accountId}`;
+            const moneyInfoResponse = await this.session.get(moneyInfoUrl, { headers: { Authorization: this.tokens[accountType] } });
+
+            if (moneyInfoResponse.status !== 200) {
+                throw new Error(`Failed to get money info with status code: ${moneyInfoResponse.status}`);
+            }
+
+            return moneyInfoResponse.data;
+        } catch (error) {
+            throw new Error(`Error getting money info for ${accountType} account: ${error.message}`);
+        }
+    }
 }
