@@ -45,5 +45,10 @@ export class EntradeAPIController {
       return { error: error.message };
     }
   }
+
+  @Get('get-all-navs-info')
+  async getNavAssetValueInfo() {
+    return this.entradeAPIService.getAllAccountNavInfo();
+  }
   // You can add more endpoints as needed
 }
