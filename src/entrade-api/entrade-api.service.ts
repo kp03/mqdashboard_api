@@ -281,13 +281,48 @@ export class EntradeAPIService {
                 }
             });
     
-            const navInfoResults = await Promise.all(navsInfoPromises);
+            let navInfoResults = await Promise.all(navsInfoPromises);
     
-            const totalNavInfo: any = {};
+            // Combine data from different account types for the same date into total
+            const totalData: { [date: string]: any[] } = {};
+            navInfoResults.forEach((result) => {
+                const navInfo = result.navInfo;
+                const dates = Object.keys(navInfo.data);
+                dates.forEach((date) => {
+                    if (!totalData[date]) {
+                        totalData[date] = [];
+                    }
+                    totalData[date] = totalData[date].concat(navInfo.data[date]);
+                });
+            });
     
+            // Aggregate data for total account type
+            const totalAccountData: { [accountNo: string]: any[] } = {};
+            Object.values(totalData).forEach((entries) => {
+                entries.forEach((entry) => {
+                    const accountNo = "totalPort";
+                    if (!totalAccountData[accountNo]) {
+                        totalAccountData[accountNo] = [];
+                    }
+                    const existingEntry = totalAccountData[accountNo].find((e) => e.time === entry.time);
+                    if (existingEntry) {
+                        existingEntry.totalCash += entry.totalCash;
+                        existingEntry.netAssetValue += entry.netAssetValue;
+                        existingEntry.stockValue += entry.stockValue;
+                        existingEntry.totalDebt += entry.totalDebt;
+                    } else {
+                        totalAccountData[accountNo].push({ ...entry, accountNo });
+                    }
+                });
+            });
     
+            // Add total data to navInfoResults
+            navInfoResults.push({ accountType: "total", navInfo: { data: totalAccountData } });
+    
+            console.log("Nav Info Results:", navInfoResults);
             return navInfoResults;
         } catch (error) {
+            console.error("Error:", error.message);
             return { error: error.message };
         }
     }
@@ -298,7 +333,7 @@ export class EntradeAPIService {
 
             const accountId = subAccounts[0].id;
             // https://services.entrade.com.vn/dnse-asset-service/customer-asset-history?investorAccountIds=0001209371&fromDate=20-01-2024&toDate=20-02-2024
-            const navInfoUrl = `${this.BASE_URL}/dnse-asset-service/customer-asset-history?investorAccountIds=${accountId}&fromDate=19-02-2024&toDate=20-02-2024`;
+            const navInfoUrl = `${this.BASE_URL}/dnse-asset-service/customer-asset-history?investorAccountIds=${accountId}&fromDate=20-01-2024&toDate=20-02-2024`;
             const navInfoUrlResponse = await this.session.get(navInfoUrl, { headers: { Authorization: this.tokens[accountType] } });
 
             if (navInfoUrlResponse.status !== 200) {
