@@ -1,5 +1,5 @@
 // entrade-api.controller.ts
-import { Controller, Get, Post } from '@nestjs/common';
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { EntradeAPIService } from './entrade-api.service';
 
 @Controller('entrade-api')
@@ -47,8 +47,11 @@ export class EntradeAPIController {
   }
 
   @Get('get-all-navs-info')
-  async getNavAssetValueInfo() {
-    return this.entradeAPIService.getAllAccountNavInfo();
+  async getNavAssetValueInfo(
+    @Query('fromDate') fromDate: string,
+    @Query('toDate') toDate: string,
+  ) {
+    return this.entradeAPIService.getAllAccountNavInfo(fromDate, toDate);
   }
   // You can add more endpoints as needed
 }

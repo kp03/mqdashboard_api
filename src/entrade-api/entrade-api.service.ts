@@ -269,12 +269,12 @@ export class EntradeAPIService {
         }
     }
 
-    async getAllAccountNavInfo() {
+    async getAllAccountNavInfo(fromDate: string, toDate: string) {
         try {
             const tokens = await this.initializeAccountsIfNeeded();
             const navsInfoPromises = Object.keys(tokens).map(async (accountType) => {
                 try {
-                    const navInfo = await this.getSingleAccountNavInfo(accountType);
+                    const navInfo = await this.getSingleAccountNavInfo(accountType, fromDate, toDate);
                     return { accountType, navInfo };
                 } catch (error) {
                     return { accountType, error: error.message };
@@ -327,19 +327,19 @@ export class EntradeAPIService {
         }
     }
     // Get net asset value for a single account
-    async getSingleAccountNavInfo(accountType: string): Promise<any>{
+    async getSingleAccountNavInfo(accountType: string, fromDate: string, toDate: string): Promise<any> {
         try {
             const { subAccounts } = await this.getUserInfoAndSubAccounts(accountType);
-
+    
             const accountId = subAccounts[0].id;
-            // https://services.entrade.com.vn/dnse-asset-service/customer-asset-history?investorAccountIds=0001209371&fromDate=20-01-2024&toDate=20-02-2024
-            const navInfoUrl = `${this.BASE_URL}/dnse-asset-service/customer-asset-history?investorAccountIds=${accountId}&fromDate=20-01-2024&toDate=20-02-2024`;
+            // Construct URL with fromDate and toDate parameters
+            const navInfoUrl = `${this.BASE_URL}/dnse-asset-service/customer-asset-history?investorAccountIds=${accountId}&fromDate=${fromDate}&toDate=${toDate}`;
             const navInfoUrlResponse = await this.session.get(navInfoUrl, { headers: { Authorization: this.tokens[accountType] } });
-
+    
             if (navInfoUrlResponse.status !== 200) {
                 throw new Error(`Failed to get money info with status code: ${navInfoUrlResponse.status}`);
             }
-
+    
             return navInfoUrlResponse.data;
         } catch (error) {
             throw new Error(`Error getting nav info for ${accountType} account: ${error.message}`);
